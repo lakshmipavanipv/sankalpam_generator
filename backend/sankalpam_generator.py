@@ -223,8 +223,9 @@ class SankalpamGenerator:
         if c["patni_raw"]:
             family_parts.append(f"सधर्मिणी {c['patni_deva']} सहितस्य")
         if c.get("other_members",""):
-            other_deva = ", ".join(name_to_deva(m.strip()) for m in c["other_members"].split(",") if m.strip())
-            family_parts.append(other_deva + " सहितस्य")
+            members_deva = [name_to_deva(m.strip()) for m in c["other_members"].split(",") if m.strip()]
+            if members_deva:
+                family_parts.append(", ".join(members_deva) + " सहितस्य")
         family_parts.append("मम सहकुटुम्बस्य")
         patni_part = ", " + ", ".join(family_parts)
         desires_part = f", (स्वकीयाः कामनाः: {c['desires']})" if c["desires"] else ""
@@ -298,7 +299,7 @@ class SankalpamGenerator:
             f"dharmarthha kamamoksha chaturvidha phala purushardha siddhyartham, "
             f"ishta kamyartha siddhyartham, "
             f"Sri Parameshwara preetyartham, "
-            f"{pooja_base.replace(' ','')}pujam{s_type_part} karishye"
+            f"{pooja_base.replace(' ','')}pujam karishye"
             f"{desires_part} ||"
         )
 
@@ -307,10 +308,9 @@ class SankalpamGenerator:
         ayana_date = "(Jan 14–Jul 13)" if c["ayana"]=="Uttarayana" else "(Jul 14–Jan 13)"
         paksha_m = "Shukla Paksha (Bright Fortnight)" if "Shukla" in c["paksha"] else "Krishna Paksha (Dark Fortnight)"
         loc_full = ", ".join(filter(None,[c["city"], c["state"], c["country"]]))
-        patni_m = f", along with wife {c['patni_raw']}," if c["patni_raw"] else ","
-        other_m = ""
-        if c.get("other_members",""):
-            other_m = ", " + c["other_members"]
+        patni_m = f", along with wife {c['patni_raw']}" if c["patni_raw"] else ""
+        members_list = [m.strip() for m in c.get("other_members","").split(",") if m.strip()]
+        other_m = ", " + ", ".join(members_list) if members_list else ""
         pooja_m = c["pooja_raw"]
         desires_m = f"\n\n(Personal desires: {c['desires']})" if c["desires"] else ""
         prefix = "\nMeaning — " if tab == "english" else "\nMeaning of the above Sankalpam — "
@@ -321,7 +321,7 @@ class SankalpamGenerator:
             f"in {paksha_m}, on the {c['tithi']} Tithi, on {c['vara_en']}, "
             f"under {c['nakshatra']} Nakshatra, in {c['yoga']} Yoga, in {c['karana']} Karana — "
             f"near {c['river']} river, in {loc_full} — "
-            f"I, {c['name_raw']} of {c['gothram_raw']} Gotra{patni_m}{other_m} "
+            f"I, {c['name_raw']} of {c['gothram_raw']} Gotra{patni_m}{other_m}, "
             f"for the welfare, stability, long life, health and prosperity of our family, "
             f"for the attainment of Dharma, Artha, Kama and Moksha (the four goals of life), "
             f"for the fulfilment of cherished desires, "
