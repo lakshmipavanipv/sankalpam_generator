@@ -24,6 +24,10 @@ class PDFGenerator:
         os.makedirs(FONT_CACHE, exist_ok=True)
 
     def create_pdf(self, sankalpam_text, form_data, panchang, language="english"):
+        # Preferred: WeasyPrint shapes Indic scripts correctly (ReportLab cannot)
+        import pdf_html
+        if pdf_html.available():
+            return pdf_html.create_pdf(sankalpam_text, form_data, panchang, language)
         try:
             from reportlab.lib.pagesizes import A4
             from reportlab.lib.styles import ParagraphStyle

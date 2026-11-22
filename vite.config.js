@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  // Sub-path the app is served from in production (e.g. /sankalpam/)
+  base: process.env.VITE_BASE || "/",
   server: {
     port: 3000,
     // Proxy API calls to backend in development

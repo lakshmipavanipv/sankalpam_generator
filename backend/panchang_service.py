@@ -89,17 +89,17 @@ RITUS = [
 
 # Telugu Samvatsaras (60-year cycle)
 SAMVATSARAS = [
-    "Prabhava", "Vibhava", "Shukla", "Pramoda", "Prajapati",
+    "Prabhava", "Vibhava", "Shukla", "Pramoduta", "Prajotpatti",
     "Angirasa", "Shrimukha", "Bhava", "Yuva", "Dhata",
-    "Ishvara", "Bahudhanya", "Pramadi", "Vikrama", "Vrisha",
+    "Ishvara", "Bahudhanya", "Pramathi", "Vikrama", "Vrisha",
     "Chitrabhanu", "Svabhanu", "Tarana", "Parthiva", "Vyaya",
     "Sarvajit", "Sarvadhari", "Virodhi", "Vikruti", "Khara",
     "Nandana", "Vijaya", "Jaya", "Manmatha", "Durmukhi",
     "Hevilambi", "Vilambi", "Vikari", "Sharvari", "Plava",
     "Shubhakrut", "Shobhakrut", "Krodhi", "Vishvavasu", "Parabhava",
     "Plavanga", "Kilaka", "Saumya", "Sadharana", "Virodhikrut",
-    "Paridhavi", "Pramadi", "Ananda", "Rakshasa", "Nala",
-    "Pingala", "Kalayukti", "Siddharthi", "Raudra", "Durmati",
+    "Paridhavi", "Pramadicha", "Ananda", "Rakshasa", "Nala",
+    "Pingala", "Kalayukti", "Siddharthi", "Raudri", "Durmati",
     "Dundubhi", "Rudhirodgari", "Raktakshi", "Krodhana", "Akshaya"
 ]
 

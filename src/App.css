@@ -804,3 +804,9 @@ body {
   padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
 .pc-k { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: #9a6b1f; }
 .pc-v { font-weight: 600; color: #5a2d0c; overflow-wrap: anywhere; }
+
+/* ── Purohit voice ── */
+.listen-bar { margin: 0 0 12px; }
+.listen-btn { width: 100%; background: #7a1f0d; color: #fff8e7; border: none; }
+.listen-btn:disabled { opacity: 0.75; }
+.listen-audio { width: 100%; }

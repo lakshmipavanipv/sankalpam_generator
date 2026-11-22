@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { fetchSankalpamAudio } from "../services/api";
 
 const LANGUAGES = [
   { key: "sanskrit", label: "संस्कृत",  sublabel: "Sanskrit" },
-  { key: "english",  label: "English",  sublabel: "Meaning" },
+  { key: "english",  label: "English",  sublabel: "English" },
   { key: "telugu",   label: "తెలుగు",   sublabel: "Telugu" },
   { key: "tamil",    label: "தமிழ்",    sublabel: "Tamil" },
   { key: "kannada",  label: "ಕನ್ನಡ",    sublabel: "Kannada" },
@@ -13,12 +14,11 @@ const LANGUAGES = [
 // Split at the separator line to show verses + meaning separately
 function splitText(text) {
   if (!text) return { verses: "", meaning: "" };
-  const SEP = "─────────────────────────────────────";
-  const idx = text.indexOf(SEP);
-  if (idx === -1) return { verses: text, meaning: "" };
+  const m = text.match(/━{5,}/);
+  if (!m) return { verses: text, meaning: "" };
   return {
-    verses:  text.slice(0, idx).trim(),
-    meaning: text.slice(idx + SEP.length).trim(),
+    verses:  text.slice(0, m.index).trim(),
+    meaning: text.slice(m.index + m[0].length).trim(),
   };
 }
 
@@ -29,6 +29,28 @@ export default function SankalpamDisplay({
   const { panchang, sankalpam, location } = data;
   const currentText = sankalpam[language] || "";
   const { verses, meaning } = splitText(currentText);
+
+  // ── Priest voice recitation ──
+  const [audio, setAudio] = useState({ status: "idle", url: null, error: "" });
+  const urlRef = useRef(null);
+  useEffect(() => {          // new language/result → drop the old recording
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    urlRef.current = null;
+    setAudio({ status: "idle", url: null, error: "" });
+  }, [language, data]);
+  useEffect(() => () => urlRef.current && URL.revokeObjectURL(urlRef.current), []);
+
+  const handleListen = async () => {
+    setAudio({ status: "loading", url: null, error: "" });
+    try {
+      const blob = await fetchSankalpamAudio({ ...formData, language });
+      const url = URL.createObjectURL(blob);
+      urlRef.current = url;
+      setAudio({ status: "ready", url, error: "" });
+    } catch (e) {
+      setAudio({ status: "error", url: null, error: e.message || "Voice unavailable" });
+    }
+  };
 
   const handleCopy = async () => {
     try { await navigator.clipboard.writeText(currentText); }
@@ -104,7 +126,20 @@ export default function SankalpamDisplay({
       <div className="sankalpam-section">
 
         {/* Part 1: Sanskrit Devanagari Verses */}
-        <div className="verse-label">📜 Sanskrit Verses (संस्कृत श्लोकाः)</div>
+        <div className="verse-label">📜 Sankalpam (सङ्कल्पः)</div>
+
+        <div className="listen-bar">
+          {audio.status === "ready" ? (
+            <audio className="listen-audio" src={audio.url} controls autoPlay />
+          ) : (
+            <button className="action-btn listen-btn" onClick={handleListen} disabled={audio.status === "loading"}>
+              {audio.status === "loading"
+                ? <><span className="btn-spinner dark" /> Preparing recitation…</>
+                : "🔊 Listen — Purohit voice"}
+            </button>
+          )}
+          {audio.status === "error" && <p className="field-error">⚠ {audio.error}</p>}
+        </div>
         <div className="sankalpam-box verses-box">
           <div className="sankalpam-decoration" aria-hidden="true">✿ ❈ ✿</div>
           <p className="sankalpam-text lang-sanskrit">
@@ -117,7 +152,7 @@ export default function SankalpamDisplay({
         {meaning && (
           <>
             <div className="verse-label meaning-label">
-              💡 {LANGUAGES.find(l => l.key === language)?.sublabel} Meaning / అర్థం / பொருள்
+              💡 Meaning ({LANGUAGES.find(l => l.key === language)?.sublabel})
             </div>
             <div className="sankalpam-box meaning-box">
               <p className={`sankalpam-text lang-${language}`}>

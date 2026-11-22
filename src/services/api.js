@@ -78,3 +78,18 @@ export async function fetchPanchang({ date, time, latitude, longitude, calendar_
   if (!r.ok) throw new Error(`Panchang failed (${r.status})`);
   return r.json();
 }
+
+/** mp3 of the priest-style voice reciting the sankalpam ({...formData, language}). */
+export async function fetchSankalpamAudio(payload) {
+  const r = await fetch(`${BASE_URL}/sankalpam-audio`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    let msg = `Voice unavailable (${r.status})`;
+    try { msg = (await r.json()).detail || msg; } catch {}
+    throw new Error(msg);
+  }
+  return r.blob();
+}

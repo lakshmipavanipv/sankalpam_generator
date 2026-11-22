@@ -74,6 +74,27 @@ def reverse_geocode(lat: float, lon: float):
     return geo_service.reverse_geocode(lat, lon)
 
 
+@app.post("/sankalpam-audio")
+def sankalpam_audio(req: PDFRequest):
+    """mp3 of a priest-style voice reciting the sankalpam in req.language."""
+    import voice_service
+    location = resolve_location(req)
+    if not location:
+        raise HTTPException(status_code=400, detail="Location not found")
+    panchang = panchang_service.calculate(req.date, req.time, location["latitude"],
+                                          location["longitude"], location["timezone"], req.calendar_type)
+    texts = sankalpam_gen.generate_all_languages(panchang, req.dict(), location)
+    lang = req.language if req.language in voice_service.VOICES else "sanskrit"
+    # the English tab is a romanisation, so recite the Devanagari original
+    text = texts["sanskrit" if lang == "english" else lang]
+    try:
+        path = voice_service.recite(text, lang)
+    except Exception as e:
+        logger.error(f"Voice synthesis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Voice service unavailable (needs internet)")
+    return FileResponse(path, media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/panchang")
 def panchang_now(date: str, time: str, lat: float, lon: float, calendar_type: str = "Telugu"):
     """Panchang only (no devotee details) - fully offline."""
