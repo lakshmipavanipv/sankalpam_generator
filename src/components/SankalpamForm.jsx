@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { reverseGeocode, fetchPanchang } from "../services/api";
 
-const today       = new Date().toISOString().split("T")[0];
+const _now        = new Date();
+const today       = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
 const currentTime = new Date().toTimeString().slice(0, 5);
 
+const DEFAULT_POOJA = "Saubhagya Gauri Vratam";
+
 const POOJA_NAMES = [
-  "Ganesh Puja", "Lakshmi Puja", "Satyanarayana Puja", "Navagraha Puja",
+  DEFAULT_POOJA, "Ganesh Puja", "Lakshmi Puja", "Satyanarayana Puja", "Navagraha Puja",
   "Rudrabhishekam", "Ayushya Homa", "Grihapravesham", "Vivah (Wedding)",
   "Upanayanam", "Namakaranam", "Annaprasana", "Seemantham",
   "Vastu Puja", "Durga Puja", "Karthika Deepam", "Other"
@@ -20,22 +24,101 @@ const CALENDAR_TYPES = ["Telugu", "Tamil", "Kannada", "Marathi"];
 
 const INIT = {
   date: today, time: currentTime,
-  pooja_name: "Satyanarayana Puja", pooja_name_custom: "",
-  sankalpam_type: "", gothram: "", name: "",
+  pooja_name: DEFAULT_POOJA, pooja_name_custom: "",
+  sankalpam_type: "Vrata (Vow/Fasting)", gothram: "", name: "",
   dharma_patni_name: "", family_name: "", other_members: "",
-  country: "Canada", state: "", city: "",
+  country: "", state: "", city: "",
+  latitude: null, longitude: null,
   calendar_type: "Telugu", desires: "",
 };
 
+// Devotee details remembered on this device so the sankalpam can be
+// generated automatically next time.
+const SAVED_KEY  = "sankalpam.devotee";
+const SAVED_KEYS = ["name", "gothram", "dharma_patni_name", "family_name", "other_members", "calendar_type"];
+const loadSaved = () => { try { return JSON.parse(localStorage.getItem(SAVED_KEY)) || {}; } catch { return {}; } };
+const saveDevotee = (f) => {
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify(Object.fromEntries(SAVED_KEYS.map(k => [k, f[k]])))); } catch {}
+};
+
+const STRIP = [
+  ["Tithi", p => `${p.paksha.replace(" Paksha", "")} ${p.tithi}`],
+  ["Nakshatram", p => `${p.nakshatra} (pada ${p.nakshatra_pada})`],
+  ["Vaaram", p => p.vara],
+  ["Masam", p => p.masa],
+  ["Yogam", p => p.yoga],
+  ["Karanam", p => p.karana],
+  ["Samvatsaram", p => p.samvatsara],
+  ["Ruthuvu", p => p.ritu],
+];
+
 export default function SankalpamForm({ onSubmit, loading }) {
-  const [form, setForm]     = useState(INIT);
+  const [form, setForm]     = useState(() => ({ ...INIT, ...loadSaved() }));
   const [errors, setErrors] = useState({});
+  const [geo, setGeo]       = useState({ status: "idle", msg: "" });
+  const [panchang, setPanchang] = useState(null);
+  const autoSubmitted = useRef(false);
 
   const set = (e) => {
     const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+    setForm(f => ({
+      ...f, [name]: value,
+      // typing a different place means the GPS fix no longer applies
+      ...(["city", "state", "country"].includes(name) ? { latitude: null, longitude: null } : {}),
+    }));
     setErrors(e2 => ({ ...e2, [name]: undefined }));
   };
+
+  // ── Detect location from the device (GPS / Wi-Fi / network) ──
+  const detectLocation = () => {
+    if (!navigator.geolocation) { setGeo({ status: "error", msg: "Location not supported on this device — enter city manually." }); return; }
+    setGeo({ status: "busy", msg: "Detecting your location…" });
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const latitude  = +pos.coords.latitude.toFixed(5);
+      const longitude = +pos.coords.longitude.toFixed(5);
+      setForm(f => ({ ...f, latitude, longitude }));
+      try {
+        const place = await reverseGeocode(latitude, longitude);
+        setForm(f => ({ ...f, latitude, longitude,
+          city: place.city || f.city, state: place.state || f.state, country: place.country || f.country }));
+        setGeo({ status: "ok", msg: `📍 ${[place.city, place.state, place.country].filter(Boolean).join(", ") || `${latitude}, ${longitude}`}${place.source === "offline" ? " (offline)" : ""}` });
+      } catch {
+        setGeo({ status: "ok", msg: `📍 ${latitude}, ${longitude} — backend unreachable, enter city name` });
+      }
+    }, async (e) => {
+      // GPS unavailable/denied -> approximate location from the network (IP)
+      try {
+        const r = await fetch("https://ipapi.co/json/");
+        const ip = await r.json();
+        if (!r.ok || ip.error || ip.latitude == null) throw new Error("ip lookup failed");
+        const latitude = +(+ip.latitude).toFixed(5), longitude = +(+ip.longitude).toFixed(5);
+        setForm(f => ({ ...f, latitude, longitude,
+          city: ip.city || f.city, state: ip.region || f.state, country: ip.country_name || f.country }));
+        setGeo({ status: "ok", msg: `🌐 ${[ip.city, ip.region, ip.country_name].filter(Boolean).join(", ")} (approximate, from network — check city)` });
+      } catch {
+        setGeo({ status: "error", msg: e.code === 1 ? "Location permission denied and no network — enter city manually." : "Could not get location — enter city manually." });
+      }
+    },{ enableHighAccuracy: true, timeout: 15000, maximumAge: 10 * 60 * 1000 });
+  };
+
+  useEffect(() => { detectLocation(); }, []);
+
+  // ── Live panchangam for the chosen date/time/place (offline engine) ──
+  useEffect(() => {
+    if (form.latitude == null || !form.date || !form.time) { setPanchang(null); return; }
+    let live = true;
+    fetchPanchang(form).then(p => live && setPanchang(p)).catch(() => live && setPanchang(null));
+    return () => { live = false; };
+  }, [form.date, form.time, form.latitude, form.longitude, form.calendar_type]);
+
+  // ── Auto-generate once location is known and devotee details are saved ──
+  useEffect(() => {
+    if (autoSubmitted.current || loading) return;
+    if (form.latitude != null && form.city && form.country && form.name.trim() && form.gothram.trim()) {
+      autoSubmitted.current = true;
+      onSubmit({ ...form, pooja_name: form.pooja_name === "Other" ? form.pooja_name_custom.trim() : form.pooja_name });
+    }
+  }, [form.latitude, form.city, form.country]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -47,6 +130,7 @@ export default function SankalpamForm({ onSubmit, loading }) {
     const poojaFinal = form.pooja_name === "Other" ? form.pooja_name_custom.trim() : form.pooja_name;
     if (!poojaFinal)          errs.pooja_name = "Pooja name is required";
     if (Object.keys(errs).length) { setErrors(errs); return; }
+    saveDevotee(form);
     onSubmit({ ...form, pooja_name: poojaFinal });
   };
 
@@ -169,6 +253,21 @@ export default function SankalpamForm({ onSubmit, loading }) {
         </div>
 
         <div className="section-divider"><span>Location &amp; Calendar</span></div>
+
+        <div className={`geo-status geo-${geo.status}`}>
+          <span>{geo.msg || "Location not detected yet"}</span>
+          <button type="button" className="geo-btn" onClick={detectLocation} disabled={loading || geo.status === "busy"}>
+            {geo.status === "busy" ? "…" : "📍 Use my location"}
+          </button>
+        </div>
+
+        {panchang && (
+          <div className="panchang-strip" aria-label="Panchangam for selected date and time">
+            {STRIP.map(([k, f]) => (
+              <div key={k} className="panchang-chip"><span className="pc-k">{k}</span><span className="pc-v">{f(panchang)}</span></div>
+            ))}
+          </div>
+        )}
 
         {/* ── Country & State ── */}
         <div className="form-row">

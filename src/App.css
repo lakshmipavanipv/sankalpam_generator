@@ -789,3 +789,18 @@ body {
 
 /* ── Form Section Spacing ───────────────────────────────────── */
 .form-section { margin-bottom: 0; }
+
+/* ── Location status + live panchangam strip ── */
+.geo-status { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; margin-bottom: 12px;
+  background: #fff8e7; border: 1px solid #f0d9a6; color: #6b4a12; }
+.geo-status.geo-error { background: #fff0ee; border-color: #f2c1b8; color: #8a2a1a; }
+.geo-btn { flex-shrink: 0; border: 1px solid #c98a2b; background: #fff; color: #8a4b08;
+  border-radius: 8px; padding: 6px 10px; font-size: 0.85rem; cursor: pointer; }
+.geo-btn:disabled { opacity: 0.6; cursor: default; }
+.panchang-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px; margin-bottom: 16px; }
+.panchang-chip { background: #fffdf6; border: 1px solid #ecd9ad; border-radius: 10px;
+  padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
+.pc-k { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: #9a6b1f; }
+.pc-v { font-weight: 600; color: #5a2d0c; overflow-wrap: anywhere; }

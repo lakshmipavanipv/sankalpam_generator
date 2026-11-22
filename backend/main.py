@@ -52,10 +52,33 @@ class SankalpamRequest(BaseModel):
     city: str
     calendar_type: str = "Telugu"
     desires: Optional[str] = ""        # NEW: free-text personal wishes
+    latitude: Optional[float] = None   # from device GPS; skips online geocoding
+    longitude: Optional[float] = None
 
 
 class PDFRequest(SankalpamRequest):
     language: str = "english"
+
+
+def resolve_location(req: "SankalpamRequest"):
+    """Prefer device GPS coordinates (works offline); else geocode city name."""
+    if req.latitude is not None and req.longitude is not None:
+        return geo_service.from_coordinates(
+            req.latitude, req.longitude, req.city, req.state or "", req.country)
+    return geo_service.get_location(req.city, req.country)
+
+
+@app.get("/reverse-geocode")
+def reverse_geocode(lat: float, lon: float):
+    """GPS coordinates -> city/state/country/timezone (online, with offline fallback)."""
+    return geo_service.reverse_geocode(lat, lon)
+
+
+@app.get("/panchang")
+def panchang_now(date: str, time: str, lat: float, lon: float, calendar_type: str = "Telugu"):
+    """Panchang only (no devotee details) - fully offline."""
+    tz = geo_service._get_timezone(lat, lon, "")
+    return panchang_service.calculate(date, time, lat, lon, tz, calendar_type)
 
 
 @app.get("/")
@@ -68,7 +91,7 @@ async def generate_sankalpam(req: SankalpamRequest):
     try:
         logger.info(f"Generating Sankalpam for {req.name} in {req.city}, {req.country}")
 
-        location = geo_service.get_location(req.city, req.country)
+        location = resolve_location(req)
         if not location:
             raise HTTPException(
                 status_code=400,
@@ -111,7 +134,7 @@ async def generate_sankalpam(req: SankalpamRequest):
 @app.post("/download-pdf")
 async def download_pdf(req: PDFRequest):
     try:
-        location = geo_service.get_location(req.city, req.country)
+        location = resolve_location(req)
         if not location:
             raise HTTPException(status_code=400, detail="Location not found")
 

@@ -32,9 +32,13 @@ def deva_to_script(text: str, script: str) -> str:
     if script == "tamil":
         return "".join(DEVA_TO_TAMIL.get(ch, ch) for ch in text)
     offset = OFFSETS.get(script, 0)
+    om = {"telugu": "ఓం", "kannada": "ಓಂ"}.get(script, "ॐ")
     out = []
     for ch in text:
         cp = ord(ch)
+        # Om and dandas have no slot in the Telugu/Kannada blocks; dandas are shared
+        if ch == "ॐ": out.append(om); continue
+        if ch in "।॥": out.append(ch); continue
         out.append(chr(cp + offset) if DEVA_START <= cp <= DEVA_END else ch)
     return "".join(out)
 

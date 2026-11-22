@@ -63,3 +63,18 @@ export async function downloadPDF(formData) {
   document.body.removeChild(a);
   window.URL.revokeObjectURL(url);
 }
+
+/** GPS coordinates -> { city, state, country, timezone, source } */
+export async function reverseGeocode(lat, lon) {
+  const r = await fetch(`${BASE_URL}/reverse-geocode?lat=${lat}&lon=${lon}`);
+  if (!r.ok) throw new Error(`Location lookup failed (${r.status})`);
+  return r.json();
+}
+
+/** Panchang only, for the live strip (computed offline on the backend). */
+export async function fetchPanchang({ date, time, latitude, longitude, calendar_type }) {
+  const q = new URLSearchParams({ date, time, lat: latitude, lon: longitude, calendar_type });
+  const r = await fetch(`${BASE_URL}/panchang?${q}`);
+  if (!r.ok) throw new Error(`Panchang failed (${r.status})`);
+  return r.json();
+}

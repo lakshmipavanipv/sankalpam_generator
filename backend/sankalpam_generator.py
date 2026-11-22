@@ -40,6 +40,10 @@ DVIPA = {
 }
 DEFAULT_DVIPA = ("जम्बुद्वीपे","भारतवर्षे","भारतखण्डे","मेरोः दक्षिणदिग्भागे")
 
+# Poojas/vratams whose sankalpam names the vratam itself (not "<name> pujam")
+POOJA_DEVA = {"saubhagya gauri vratam": "सौभाग्यगौरीव्रतं"}
+POOJA_EN   = {"saubhagya gauri vratam": "Saubhagya Gauri vratam"}
+
 def get_dvipa(country): return DVIPA.get(country.lower().strip(), DEFAULT_DVIPA)
 
 # ── Panchang terms in Devanagari ──────────────────────────────────────────────
@@ -180,7 +184,7 @@ class SankalpamGenerator:
         pooja_raw    = form_data.get("pooja_name","Pooja").strip()
         # Remove common suffixes for compound form
         pooja_base   = pooja_raw.replace(" Puja","").replace(" Homa","").replace(" Puja","")
-        pooja_deva   = name_to_deva(pooja_base) + "पूजां"
+        pooja_deva   = POOJA_DEVA.get(pooja_raw.lower()) or (name_to_deva(pooja_base) + "पूजां")
 
         s_type       = form_data.get("sankalpam_type","").strip()
         desires      = form_data.get("desires","").strip()
@@ -278,6 +282,7 @@ class SankalpamGenerator:
                      else ", mama sahakuTumbasya"
         desires_part = f", (svakeeya kaamanah: {c['desires']})" if c["desires"] else ""
         pooja_base = c["pooja_raw"].replace(" Puja","").replace(" Homa","")
+        pooja_en   = POOJA_EN.get(c["pooja_raw"].lower()) or f"{pooja_base.replace(' ','')}pujam"
         s_type_part = f" ({c['s_type']})" if c["s_type"] else ""
 
         return (
@@ -293,13 +298,13 @@ class SankalpamGenerator:
             f"{paksha_en}, {tithi_en}, {vara_en}, "
             f"{naksh_en}, {yoga_en}, {karana_en}, "
             f"evam guna visheshana vishishtayam shubha tithau, "
-            f"{c['gothram_raw'].replace(' ','')}gothrabhavasyа, {c['name_raw'].replace(' ','')}namadheyasya"
+            f"{c['gothram_raw'].replace(' ','')}gothrabhavasya, {c['name_raw'].replace(' ','')}namadheyasya"
             f"{patni_part}, "
             f"kshema sthairya ayurarogya aishvarya abhivruddhyartham, "
             f"dharmarthha kamamoksha chaturvidha phala purushardha siddhyartham, "
             f"ishta kamyartha siddhyartham, "
             f"Sri Parameshwara preetyartham, "
-            f"{pooja_base.replace(' ','')}pujam karishye"
+            f"{pooja_en} karishye"
             f"{desires_part} ||"
         )
 

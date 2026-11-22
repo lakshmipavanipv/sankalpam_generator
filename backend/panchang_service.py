@@ -17,6 +17,12 @@ import math
 import logging
 from datetime import datetime
 import pytz
+import swisseph as swe
+
+# Sidereal (Nirayana) positions with Lahiri ayanamsa, as used by Telugu panchangam.
+# FLG_MOSEPH = built-in Moshier ephemeris -> works fully offline, no data files needed.
+swe.set_sid_mode(swe.SIDM_LAHIRI)
+_SID_FLAGS = swe.FLG_MOSEPH | swe.FLG_SIDEREAL
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +123,10 @@ class PanchangService:
         Main method: returns all Panchang elements.
         """
         try:
+            # Swiss Ephemeris keeps settings per thread; FastAPI runs requests
+            # on worker threads, so set Lahiri on every call.
+            swe.set_sid_mode(swe.SIDM_LAHIRI)
+
             # Parse date/time in local timezone
             tz = pytz.timezone(timezone)
             dt_local = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
@@ -125,12 +135,12 @@ class PanchangService:
             # Convert to UTC for calculations
             dt_utc = dt_local.astimezone(pytz.utc)
 
-            # Julian Day Number (astronomical time standard)
+            # Julian Day (UT)
             jd = self._julian_day(dt_utc)
 
-            # Calculate sun and moon positions
-            sun_lon = self._sun_longitude(jd)
-            moon_lon = self._moon_longitude(jd)
+            # Sidereal (Nirayana) Sun and Moon longitudes, Lahiri ayanamsa
+            sun_lon = self._sid_lon(jd, swe.SUN)
+            moon_lon = self._sid_lon(jd, swe.MOON)
 
             # ── 5 Panchang Elements ──────────────────────────────────────────
 
@@ -139,37 +149,43 @@ class PanchangService:
 
             # 2. Vara (weekday)
             vara_num = dt_local.weekday()  # 0=Monday in Python
-            # Convert to Hindu weekday (0=Sunday)
-            hindu_vara = (vara_num + 1) % 7
+            hindu_vara = (vara_num + 1) % 7  # 0=Sunday
             vara_name = VARAS[hindu_vara]
 
-            # 3. Nakshatra (lunar mansion)
-            nakshatra_num = int(moon_lon / (360 / 27)) % 27
+            # 3. Nakshatra (sidereal Moon / 13°20')
+            nak_span = 360 / 27
+            nakshatra_num = int(moon_lon / nak_span) % 27
             nakshatra_name = NAKSHATRAS[nakshatra_num]
+            nakshatra_pada = int((moon_lon % nak_span) / (nak_span / 4)) + 1
 
-            # 4. Yoga (luni-solar)
-            yoga_num = int(((sun_lon + moon_lon) % 360) / (360 / 27)) % 27
+            # 4. Yoga (sidereal Sun + Moon)
+            yoga_num = int(((sun_lon + moon_lon) % 360) / nak_span) % 27
             yoga_name = YOGAS[yoga_num]
 
-            # 5. Karana (half-tithi)
-            karana_num = int(((moon_lon - sun_lon) % 360) / 6) % 11
-            karana_name = KARANAS[karana_num]
+            # 5. Karana (half-tithi, 60 per lunar month)
+            karana_name = self._calc_karana((moon_lon - sun_lon) % 360)
 
             # ── Additional Elements ──────────────────────────────────────────
 
-            # Masa (lunar month) - based on sun's position
-            masa_num = int(sun_lon / 30) % 12
-            masa_name = self._get_masa(masa_num, calendar_type)
+            # Masa: amanta lunar month (Telugu/Kannada/Marathi) named from the
+            # Sun's rashi at the preceding new moon; Tamil uses the solar month.
+            masa_num, is_adhika = self._calc_lunar_masa(jd)
+            if calendar_type == "Tamil":
+                masa_name = TAMIL_MASAS[int(sun_lon / 30) % 12]
+            else:
+                masa_name = self._get_masa(masa_num, calendar_type)
+                if is_adhika:
+                    masa_name = "Adhika " + masa_name
 
-            # Ritu (season) - 2 masas per season
-            ritu_num = masa_num // 2
-            ritu_name, ritu_english = RITUS[ritu_num % 6]
+            # Ritu (season) - 2 lunar masas per season, Chaitra = Vasanta
+            ritu_name, ritu_english = RITUS[(masa_num // 2) % 6]
 
-            # Ayana (solar half-year)
+            # Ayana (sidereal Sun: Makara -> Mithuna is Uttarayana)
             ayana = self._calc_ayana(sun_lon)
 
-            # Samvatsara (year in 60-year cycle)
-            samvatsara = self._calc_samvatsara(dt_local.year)
+            # Samvatsara changes at Ugadi (Chaitra), not on 1 January
+            lunar_year = dt_local.year - 1 if (dt_local.month <= 4 and masa_num >= 8) else dt_local.year
+            samvatsara = self._calc_samvatsara(lunar_year)
 
             # Year in Kali Yuga
             kali_yuga_year = dt_local.year + 3101
@@ -181,6 +197,7 @@ class PanchangService:
                 "vara": vara_name,
                 "vara_english": VARA_ENGLISH[hindu_vara],
                 "nakshatra": nakshatra_name,
+                "nakshatra_pada": nakshatra_pada,
                 "yoga": yoga_name,
                 "karana": karana_name,
                 "masa": masa_name,
@@ -196,6 +213,9 @@ class PanchangService:
                 "timezone": timezone,
                 "sun_longitude": round(sun_lon, 2),
                 "moon_longitude": round(moon_lon, 2),
+                "ayanamsa": round(swe.get_ayanamsa_ut(jd), 4),
+                "is_adhika_masa": is_adhika,
+                "engine": "Swiss Ephemeris (Moshier, offline) - Lahiri sidereal",
             }
 
         except Exception as e:
@@ -221,47 +241,49 @@ class PanchangService:
         jd = int(365.25 * (y + 4716)) + int(30.6001 * (m + 1)) + d + h / 24.0 + B - 1524.5
         return jd
 
-    def _sun_longitude(self, jd: float) -> float:
-        """Calculate approximate Sun ecliptic longitude (degrees)."""
-        # Days since J2000.0
-        n = jd - 2451545.0
+    def _sid_lon(self, jd: float, body: int) -> float:
+        """Sidereal ecliptic longitude (degrees) of a body, Lahiri ayanamsa."""
+        return swe.calc_ut(jd, body, _SID_FLAGS)[0][0] % 360
 
-        # Mean longitude
-        L = (280.460 + 0.9856474 * n) % 360
+    def _elongation(self, jd: float) -> float:
+        """Moon minus Sun longitude, 0..360."""
+        return (self._sid_lon(jd, swe.MOON) - self._sid_lon(jd, swe.SUN)) % 360
 
-        # Mean anomaly
-        g = math.radians((357.528 + 0.9856003 * n) % 360)
+    def _new_moon_near(self, jd_guess: float) -> float:
+        """Refine to the exact new moon (elongation = 0) near jd_guess."""
+        jd = jd_guess
+        for _ in range(8):
+            e = self._elongation(jd)
+            if e > 180:
+                e -= 360
+            jd -= e / 12.190749  # mean daily elongation
+            if abs(e) < 1e-6:
+                break
+        return jd
 
-        # Ecliptic longitude
-        lon = L + 1.915 * math.sin(g) + 0.020 * math.sin(2 * g)
-        return lon % 360
+    def _calc_lunar_masa(self, jd: float):
+        """
+        Amanta masa: month is named by the Sun's rashi at the new moon that
+        starts it (Sun in Meena -> Chaitra). If no sankranti falls inside the
+        month (Sun in same rashi at both new moons) it is Adhika.
+        Returns (masa_index with Chaitra=0, is_adhika).
+        """
+        prev_nm = self._new_moon_near(jd - self._elongation(jd) / 12.190749)
+        if prev_nm > jd:  # refinement landed on the next new moon
+            prev_nm = self._new_moon_near(prev_nm - 29.53)
+        next_nm = self._new_moon_near(prev_nm + 29.53)
+        r1 = int(self._sid_lon(prev_nm, swe.SUN) / 30) % 12
+        r2 = int(self._sid_lon(next_nm, swe.SUN) / 30) % 12
+        return (r1 + 1) % 12, r1 == r2
 
-    def _moon_longitude(self, jd: float) -> float:
-        """Calculate approximate Moon ecliptic longitude (degrees)."""
-        n = jd - 2451545.0
-
-        # Moon's mean longitude
-        L = (218.316 + 13.176396 * n) % 360
-
-        # Moon's mean anomaly
-        M = math.radians((134.963 + 13.064993 * n) % 360)
-
-        # Moon's mean elongation
-        D = math.radians((297.850 + 12.190749 * n) % 360)
-
-        # Moon's argument of latitude
-        F = math.radians((93.272 + 13.229350 * n) % 360)
-
-        # Correction terms
-        lon = (
-            L
-            + 6.289 * math.sin(M)
-            - 1.274 * math.sin(2 * D - M)
-            + 0.658 * math.sin(2 * D)
-            - 0.186 * math.sin(math.radians((357.528 + 0.9856003 * n) % 360))
-            - 0.114 * math.sin(2 * F)
-        )
-        return lon % 360
+    def _calc_karana(self, elongation: float) -> str:
+        """60 half-tithis: Kimstughna, 8 x 7 movable karanas, Shakuni, Chatushpada, Naga."""
+        k = int(elongation / 6) % 60
+        if k == 0:
+            return "Kimstughna"
+        if k >= 57:
+            return ["Shakuni", "Chatushpada", "Nagava"][k - 57]
+        return KARANAS[(k - 1) % 7]
 
     def _calc_tithi(self, sun_lon: float, moon_lon: float):
         """
