@@ -2,6 +2,8 @@
 transliteration.py (v4) – comprehensive known-terms + Unicode offset conversion
 """
 
+import re
+
 DEVA_START, DEVA_END = 0x0900, 0x097F
 
 OFFSETS = {
@@ -133,6 +135,10 @@ KNOWN = {
     "petluri":"पेटलूरि","dash":"दाश","das":"दास","devi":"देवी",
     "singh":"सिंह","nair":"नायर","pillai":"पिल्लई","menon":"मेनन",
     "iyer":"अय्यर","iyengar":"अय्यंगार","naidu":"नायडू","chetty":"चेट्टी",
+    # ── Deity names (default devotee names) ──────────────────────────────────
+    "maheshwara":"महेश्वर","maheswara":"महेश्वर","maheshwar":"महेश्वर","maheswar":"महेश्वर",
+    "uma":"उमा","shakti":"शक्ति","sakthi":"शक्ति","parvati":"पार्वती","parvathi":"पार्वती",
+    "gauri":"गौरी","gowri":"गौरी","shankara":"शंकर","parameshwara":"परमेश्वर",
     # ── Pooja / ritual names ──────────────────────────────────────────────────
     "satyanarayana":"सत्यनारायण","ganesh puja":"गणेशपूजां","lakshmi puja":"लक्ष्मीपूजां",
     "navagraha":"नवग्रह","rudrabhishekam":"रुद्राभिषेकम्","ayushya":"आयुष्य",
@@ -196,28 +202,45 @@ def name_to_deva(text: str) -> str:
         return " ".join(KNOWN.get(w.lower(), _phoneme(w)) for w in words)
     return _phoneme(text)
 
-def _phoneme(text: str) -> str:
-    PAIRS = [
-        ("shri","श्री"),("sri","श्री"),("ksh","क्ष"),
-        ("aa","आ"),("ee","ई"),("ii","ई"),("oo","ऊ"),("uu","ऊ"),
-        ("ai","ऐ"),("au","औ"),("sh","श"),("th","थ"),("gh","घ"),
-        ("kh","ख"),("ph","फ"),("bh","भ"),("dh","ध"),("ch","च"),
-        ("jh","झ"),("ng","ङ"),("rr","ऋ"),("ri","रि"),
-        ("a","अ"),("e","ए"),("i","इ"),("o","ओ"),("u","उ"),
-        ("b","ब"),("c","क"),("d","द"),("f","फ"),("g","ग"),("h","ह"),
-        ("j","ज"),("k","क"),("l","ल"),("m","म"),("n","न"),
-        ("p","प"),("q","क"),("r","र"),("s","स"),("t","त"),
-        ("v","व"),("w","व"),("x","क्स"),("y","य"),("z","ज"),
-        (" "," "),(","," "),("."," "),("-"," "),("'",""),
-    ]
-    result, s, i = [], text.lower(), 0
+# Phonetic fallback for names not in KNOWN: builds proper syllables
+# (consonant + vowel sign, virama between consonants), Indian-English spelling.
+_CONS = [  # longest first
+    ("chh", "छ"), ("ksh", "क्ष"), ("shr", "श्र"),
+    ("kh", "ख"), ("gh", "घ"), ("ch", "च"), ("jh", "झ"), ("th", "त"), ("dh", "ध"),
+    ("ph", "फ"), ("bh", "भ"), ("sh", "श"), ("zh", "ழ"),
+    ("k", "क"), ("g", "ग"), ("c", "क"), ("j", "ज"), ("t", "त"), ("d", "द"), ("n", "न"),
+    ("p", "प"), ("b", "ब"), ("m", "म"), ("y", "य"), ("r", "र"), ("l", "ल"), ("v", "व"),
+    ("w", "व"), ("s", "स"), ("h", "ह"), ("f", "फ"), ("z", "ज"), ("q", "क"), ("x", "क्स"),
+]
+_VOW = [  # (latin, independent, sign)
+    ("aa", "आ", "ा"), ("ai", "ऐ", "ै"), ("au", "औ", "ौ"), ("ee", "ई", "ी"), ("ii", "ई", "ी"),
+    ("oo", "ऊ", "ू"), ("uu", "ऊ", "ू"), ("ou", "औ", "ौ"),
+    ("a", "अ", ""), ("e", "ए", "े"), ("i", "इ", "ि"), ("o", "ओ", "ो"), ("u", "उ", "ु"),
+]
+
+def _phoneme_word(w: str) -> str:
+    s, i, out, pending = w.lower(), 0, [], False   # pending: consonant awaiting a vowel
+    if s.startswith("sri") or s.startswith("shri"):
+        out.append("श्री"); i = 3 if s.startswith("sri") else 4
     while i < len(s):
-        matched = False
-        for pat, rep in PAIRS:
-            if s[i:i+len(pat)] == pat:
-                result.append(rep); i += len(pat); matched = True; break
-        if not matched: result.append(s[i]); i += 1
-    return "".join(result)
+        v = next((x for x in _VOW if s.startswith(x[0], i)), None)
+        if v:
+            out.append(v[2] if pending else v[1]); pending = False; i += len(v[0]); continue
+        c = next((x for x in _CONS if s.startswith(x[0], i)), None)
+        if c and c[0] in ("n", "m") and pending is False and out:
+            # n/m before a stop consonant → anusvara (अंजलि, वेंकट), not a conjunct
+            nxt = s[i + 1:i + 2]
+            if nxt and nxt not in "aeiouyrvwhnm" and nxt.isalpha():
+                out.append("ं"); i += 1; continue
+        if c:
+            if pending:
+                out.append("्")            # consonant cluster
+            out.append(c[1]); pending = True; i += len(c[0]); continue
+        pending = False; i += 1          # skip punctuation / unknown characters
+    return "".join(out)
+
+def _phoneme(text: str) -> str:
+    return " ".join(_phoneme_word(w) for w in re.split(r"[\s,.\-']+", text) if w)
 
 def to_script(text: str, script: str) -> str:
     return deva_to_script(name_to_deva(text), script)

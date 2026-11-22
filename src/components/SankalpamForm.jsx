@@ -25,8 +25,10 @@ const CALENDAR_TYPES = ["Telugu", "Tamil", "Kannada", "Marathi"];
 const INIT = {
   date: today, time: currentTime,
   pooja_name: DEFAULT_POOJA, pooja_name_custom: "",
-  sankalpam_type: "Vrata (Vow/Fasting)", gothram: "", name: "",
-  dharma_patni_name: "", family_name: "", other_members: "",
+  // Default yajamana couple: Uma–Maheshwara, the divine couple invoked in
+  // Saubhagya Gauri Vratam. Devotees replace these with their own names.
+  sankalpam_type: "Vrata (Vow/Fasting)", gothram: "", name: "Maheshwara",
+  dharma_patni_name: "Uma", family_name: "", other_members: "",
   country: "", state: "", city: "",
   latitude: null, longitude: null,
   calendar_type: "Telugu", desires: "",
