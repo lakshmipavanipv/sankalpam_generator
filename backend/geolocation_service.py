@@ -6,6 +6,8 @@ Uses the free Nominatim (OpenStreetMap) geocoding API.
 No API key required!
 """
 
+import math
+import re
 import requests
 import logging
 from functools import lru_cache
@@ -89,6 +91,13 @@ OFFLINE_CITIES = [
     ("Sydney", "New South Wales", "Australia", -33.869, 151.209),
     ("Melbourne", "Victoria", "Australia", -37.814, 144.963),
 ]
+
+METROS = {"Hyderabad", "Bengaluru", "Chennai", "Mumbai", "New Delhi", "Kolkata",
+          "Pune", "Ahmedabad", "Toronto", "New York", "Los Angeles", "Chicago",
+          "Dallas", "Houston", "London", "Singapore", "Dubai", "Sydney", "Melbourne"}
+
+# "Gandipet mandal" -> "Gandipet", "Tenali Mandal" -> "Tenali"
+_ADMIN_SUFFIX = re.compile(r"\s+(mandal|tehsil|taluka?|district|division|block)\b.*$", re.I)
 
 # Country guess from timezone when no known city is nearby
 TZ_COUNTRY = {
@@ -196,9 +205,19 @@ class GeolocationService:
             )
             r.raise_for_status()
             a = r.json().get("address", {})
-            city = (a.get("city") or a.get("town") or a.get("village")
-                    or a.get("municipality") or a.get("county") or "")
-            return {"city": city, "state": a.get("state", ""),
+            city = a.get("city") or a.get("town") or ""
+            state = a.get("state", "")
+            if not city:
+                # Outskirts often have no city, only a mandal/taluk (e.g. "Gandipet
+                # mandal" in Hyderabad). Prefer the metro it belongs to.
+                metro = self._nearby_city(lat, lon)
+                if metro:
+                    city, state = metro[0], metro[1] or state
+                else:
+                    raw = (a.get("village") or a.get("municipality")
+                           or a.get("county") or a.get("state_district") or "")
+                    city = _ADMIN_SUFFIX.sub("", raw).strip()
+            return {"city": city, "state": state,
                     "country": a.get("country", ""), "timezone": tz,
                     "latitude": lat, "longitude": lon, "source": "online"}
         except Exception as e:
@@ -208,6 +227,20 @@ class GeolocationService:
             return {"city": best[0] if near else "", "state": best[1] if near else "",
                     "country": best[2] if near else TZ_COUNTRY.get(tz, ""),
                     "timezone": tz, "latitude": lat, "longitude": lon, "source": "offline"}
+
+    @staticmethod
+    def _nearby_city(lat: float, lon: float):
+        """Known city whose urban area contains the point (metros ~35 km, others ~12 km)."""
+        best, best_d = None, 1e9
+        for c in OFFLINE_CITIES:
+            dlat = math.radians(c[3] - lat)
+            dlon = math.radians(c[4] - lon)
+            h = (math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat))
+                 * math.cos(math.radians(c[3])) * math.sin(dlon / 2) ** 2)
+            d = 12742 * math.asin(math.sqrt(h))
+            if d <= (35 if c[0] in METROS else 12) and d < best_d:
+                best, best_d = c, d
+        return best
 
     def _get_timezone(self, lat: float, lon: float, country: str) -> str:
         """

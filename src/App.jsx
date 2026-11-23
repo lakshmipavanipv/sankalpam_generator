@@ -51,7 +51,13 @@ export default function App() {
           <div className="om-symbol">ॐ</div>
           <div className="header-text">
             <h1 className="app-title">Sankalpam Generator</h1>
-            <p className="app-brand">by <a href="https://velvue.in" target="_blank" rel="noopener noreferrer">Velvue</a></p>
+            <p className="app-brand">
+              by
+              <a href="https://velvue.in" target="_blank" rel="noopener noreferrer" aria-label="Velvue">
+                <img src={`${import.meta.env.BASE_URL}velvue-logo-gold.png`} alt="" className="brand-logo" />
+                <span>VELVUE</span>
+              </a>
+            </p>
             <p className="app-subtitle">Sri Vedic Pooja Sankalpam • Generate Your Sacred Vow</p>
           </div>
           <div className="om-symbol om-right">🪔</div>
@@ -95,7 +101,11 @@ export default function App() {
 
       <footer className="app-footer">
         <p>🙏 <em>Shubham Bhavatu</em> — May all be auspicious</p>
-        <p className="footer-small">Sankalpam Generator by Velvue • Panchang-based • Multi-language</p>
+        <a className="footer-brand" href="https://velvue.in" target="_blank" rel="noopener noreferrer">
+          <img src={`${import.meta.env.BASE_URL}velvue-logo-gold.png`} alt="Velvue logo" />
+          <span>by VELVUE</span>
+        </a>
+        <p className="footer-small">Sankalpam Generator • Panchang-based • Multi-language</p>
       </footer>
     </div>
   );

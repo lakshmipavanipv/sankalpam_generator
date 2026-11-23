@@ -126,14 +126,34 @@ body {
   margin-top: 2px;
   letter-spacing: 0.06em;
 }
+.app-brand { display: flex; align-items: center; gap: 8px; }
 .app-brand a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--gold-light);
   font-weight: 700;
   font-style: normal;
   text-decoration: none;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
 }
-.app-brand a:hover { text-decoration: underline; }
+.app-brand a:hover span { text-decoration: underline; }
+.brand-logo { height: 24px; width: auto; display: block; }
+
+.footer-brand {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--gold-light);
+  text-decoration: none;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+}
+.footer-brand img { height: 30px; width: auto; }
 
 .app-subtitle {
   font-size: 0.85rem;
