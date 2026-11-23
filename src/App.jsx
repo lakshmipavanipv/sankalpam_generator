@@ -51,6 +51,7 @@ export default function App() {
           <div className="om-symbol">ॐ</div>
           <div className="header-text">
             <h1 className="app-title">Sankalpam Generator</h1>
+            <p className="app-brand">by <a href="https://velvue.in" target="_blank" rel="noopener noreferrer">Velvue</a></p>
             <p className="app-subtitle">Sri Vedic Pooja Sankalpam • Generate Your Sacred Vow</p>
           </div>
           <div className="om-symbol om-right">🪔</div>
@@ -94,7 +95,7 @@ export default function App() {
 
       <footer className="app-footer">
         <p>🙏 <em>Shubham Bhavatu</em> — May all be auspicious</p>
-        <p className="footer-small">Sankalpam Generator • Panchang-based • Multi-language</p>
+        <p className="footer-small">Sankalpam Generator by Velvue • Panchang-based • Multi-language</p>
       </footer>
     </div>
   );

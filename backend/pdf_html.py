@@ -15,6 +15,7 @@ CSS = f"""
 @page {{ size: A4; margin: 18mm 18mm 16mm; }}
 body {{ font-family: {FONTS}; color: #1a1a1a; font-size: 10.5pt; line-height: 1.75; }}
 h1 {{ color: #8b0000; text-align: center; font-size: 20pt; margin: 6px 0 2px; font-weight: 600; }}
+.brand {{ text-align: center; color: #8b0000; font-size: 9.5pt; font-style: italic; letter-spacing: 1px; margin-bottom: 4px; }}
 .sub {{ text-align: center; color: #5c3317; font-size: 9.5pt; margin-bottom: 10px; }}
 hr.top {{ border: 0; border-top: 3px solid #8b0000; margin: 0 0 8px; }}
 hr {{ border: 0; border-top: 1px solid #deb887; margin: 12px 0; }}
@@ -63,6 +64,7 @@ def create_pdf(sankalpam_text, form_data, panchang, language="english") -> str:
     ])
     doc = f"""<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>
 <hr class="top"><h1>ॐ Sankalpam</h1>
+<div class="brand">by Velvue</div>
 <div class="sub">{e(form_data.get('pooja_name'))} | {e(language.title())} | {e(form_data.get('date'))} {e(form_data.get('time'))}</div>
 <hr>
 <h2>Panchang Details</h2><table>{pan}</table>
@@ -70,7 +72,7 @@ def create_pdf(sankalpam_text, form_data, panchang, language="english") -> str:
 <h2>Sankalpam ({e(language.title())})</h2>
 <div class="sankalpam text">{html.escape(verses)}</div>
 {f'<h2>Meaning</h2><div class="text">{html.escape(meaning)}</div>' if meaning else ''}
-<hr><div class="foot">Generated on {datetime.now().strftime('%d %B %Y, %I:%M %p')} | Sankalpam Generator</div>
+<hr><div class="foot">Generated on {datetime.now().strftime('%d %B %Y, %I:%M %p')} | Sankalpam Generator by Velvue · sankalpam-generator.velvue.in</div>
 <div class="bless">॥ शुभं भवतु ॥ May all be auspicious</div>
 </body></html>"""
     fd, path = tempfile.mkstemp(prefix="sankalpam_", suffix=".pdf")

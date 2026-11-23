@@ -118,6 +118,23 @@ body {
   line-height: 1.2;
 }
 
+.app-brand {
+  font-family: "Noto Serif", serif;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: rgba(255,255,255,0.85);
+  margin-top: 2px;
+  letter-spacing: 0.06em;
+}
+.app-brand a {
+  color: var(--gold-light);
+  font-weight: 700;
+  font-style: normal;
+  text-decoration: none;
+  letter-spacing: 0.1em;
+}
+.app-brand a:hover { text-decoration: underline; }
+
 .app-subtitle {
   font-size: 0.85rem;
   color: rgba(255,255,255,0.75);
